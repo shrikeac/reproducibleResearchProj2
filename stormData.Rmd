@@ -1,0 +1,204 @@
+---
+title: "Storm Data Analysis"
+author: "Anning Chen"
+date: "January 23, 2016"
+output: html_document
+---
+
+# Storm Data Analysis between 1950 and 2011
+
+
+## Synopsis 
+
+This analysis will look at storm data from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database[https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2] across the United State from 1950 to 2011 and determine the type of events that  
+
+1. are most harmful with respect to population health  
+2. caused most economic damage
+
+From the analysis, we found that 
+
+1. tornados cause the most fatalities and injuries by far
+2. flood causes the most amount of property damage and drought causes the most crop damage
+
+See below for more detailed analysis and breakdown.
+
+## Loading and Processing the Raw Data
+
+Read in the unzipped repdata-data-StormData.csv file:
+```{r cache = TRUE}
+stormData <- read.csv('repdata-data-StormData.csv')
+dim(stormData)
+```
+There are 902,297 rows and 37 columns in this dataset
+
+Here are the first few lines of the data
+```{r}
+head(stormData)
+```
+
+## Fatalities and Injuries Analysis
+
+There are 2 columns in the stormData dataframe that show impact to population health, namely: fatalities and injuries.  We will analyze these columns.
+
+Sum up all the fatalities, get rid of the events with 0 fatalities and sort the list in descending order
+```{r}
+fatalities <- aggregate(x = stormData$FATALITIES, by = list(stormData$EVTYPE), sum)
+fatalities <- subset(fatalities,x > 0)
+fatalities <- fatalities[order(fatalities$x,decreasing = T),]
+```
+
+Using the 80-20 rule, we want to see the events that caused 80% of all fatalities and injuries
+
+80% of the total number of fatalities is 12116
+```{r}
+.8*sum(fatalities$x)
+```
+
+So the 1st 11 events caused more than 80% of fatalities
+```{r}
+sum(head(fatalities$x,11))
+```
+
+Here are the 11 events that caused the most fatalities
+```{r}
+topFatalities <- head(fatalities,11)
+topFatalities
+```
+
+Do the same with injuries
+```{r}
+injuries <- aggregate(x = stormData$INJURIES, by = list(stormData$EVTYPE), sum)
+injuries <- subset(injuries,x > 0)
+injuries <- injuries[order(injuries$x,decreasing = T),]
+```
+
+80% of the total number of injuries is 112423
+```{r}
+.8*sum(injuries$x)
+```
+
+The 1st 5 events caued more than 80% of injuries
+```{r}
+sum(head(injuries$x,5))
+``` 
+
+But for consistency, just show the same number of events as fatalities
+```{r}
+topInjuries <- head(injuries,11)
+topInjuries
+```
+
+Plot of events that caused more than 80% of fatalities and injuries
+```{r}
+par(mfrow=c(1,2))
+par(mar=c(7,4,4,1))
+barplot(topFatalities$x,names.arg = topFatalities$Group.1, las = 3, cex.names = .75, col="red", ylab = 'Fatalities')
+barplot(topInjuries$x,names.arg = topInjuries$Group.1, las = 3, cex.names = .75, col="orange", ylab='Injuries')
+```
+
+## Fatalities and Injuries Results
+
+We can see from the plot above that tornados cause the most fatalities and injuries by far.
+
+## Economic Consequences Analysis
+
+There are 2 columns in the stormData dataFrame that show economic impact, namely: propdmg and cropdmg along with 2 other columns with exp as suffix used for units.  The analysis here is essentially the same as for fatalities and injuries but with an additional dollar conversion step.
+
+Here is the propDmgConversion function handling the propDmgExp factors, any exp factor not recognized in the function will cause the value to be 0
+```{r}
+unique(stormData$PROPDMGEXP)
+
+propDmgConversion <- function(x) {
+	if(x['PROPDMGEXP'] == 'K' || x['PROPDMGEXP'] == 'k') {
+		multBy <- 1000
+	} else if (x['PROPDMGEXP'] == 'M' || x['PROPDMGEXP'] == 'm') {
+		multBy <- 1000000
+	} else if (x['PROPDMGEXP'] == 'H' || x['PROPDMGEXP'] == 'h') {
+		multBy <- 100
+	} else if (x['PROPDMGEXP'] == 'B' || x['PROPDMGEXP'] == 'b') {
+		multBy <- 1000000000
+	} else if (x['PROPDMGEXP'] %in% factor(c(0:8))) {
+		multBy <- 10^as.numeric(as.character(x['PROPDMGEXP']))
+	} else if (x['PROPDMGEXP'] == '+' || x['PROPDMGEXP'] == '-' || x['PROPDMGEXP'] == '') {
+		multBy <- 1
+	} else {
+		multBy <- 0
+	}
+	as.numeric(x['PROPDMG'])*multBy
+}
+```
+
+Convert all propDmg values to a consistent unit and add it as a new column PROPDMGCONV to stormData dataset:
+```{r cache = TRUE}
+stormData$PROPDMGCONV <- apply(stormData,MARGIN = 1,FUN = propDmgConversion)
+```
+
+Do the same for cropDmg values
+```{r}
+unique(stormData$CROPDMGEXP)
+
+cropDmgConversion <- function(x) {
+	if(x['CROPDMGEXP'] == 'K' || x['CROPDMGEXP'] == 'k') {
+		multBy <- 1000
+	} else if (x['CROPDMGEXP'] == 'M' || x['CROPDMGEXP'] == 'm') {
+		multBy <- 1000000
+	} else if (x['CROPDMGEXP'] == 'H' || x['CROPDMGEXP'] == 'h') {
+		multBy <- 100
+	} else if (x['CROPDMGEXP'] == 'B' || x['CROPDMGEXP'] == 'b') {
+		multBy <- 1000000000
+	} else if (x['CROPDMGEXP'] %in% factor(c(0:8))) {
+		multBy <- 10^as.numeric(as.character(x['CROPDMGEXP']))
+	} else if (x['CROPDMGEXP'] == '+' || x['CROPDMGEXP'] == '-' || x['CROPDMGEXP'] == '') {
+		multBy <- 1
+	} else {
+		multBy <- 0
+	}
+	as.numeric(x['CROPDMG'])*multBy
+}
+```
+
+Convert all cropDmg values to a consistent unit and add it as a new column CROPDMGCONV to stormData dataset:
+```{r cache = TRUE}
+stormData$CROPDMGCONV <- apply(stormData,MARGIN = 1,FUN = cropDmgConversion)
+```
+
+sum up all the propDmgConv, get rid of the events with 0 and sort the list in descending order
+```{r}
+propDmgConv <- aggregate(x = stormData$PROPDMGCONV, by = list(stormData$EVTYPE), sum)
+propDmgConv <- subset(propDmgConv,x > 0)
+propDmgConv <- propDmgConv[order(propDmgConv$x,decreasing = T),]
+```
+
+See that the top 10 ten events cause more than 80% of all propDmg, so just look at these 10 events
+```{r}
+.8*sum(propDmgConv$x)
+sum(head(propDmgConv$x,10))
+topPropDmg <- head(propDmgConv,10)
+```
+
+sum up all the cropDmgConv, get rid of the events with 0 and sort the list in descending order
+```{r}
+cropDmgConv <- aggregate(x = stormData$CROPDMGCONV, by = list(stormData$EVTYPE), sum)
+cropDmgConv <- subset(cropDmgConv,x > 0)
+cropDmgConv <- cropDmgConv[order(cropDmgConv$x,decreasing = T),]
+```
+
+See that the top 10 ten events cause more than 80% of all cropDmg, so just look at these 10 events
+```{r}
+.8*sum(cropDmgConv$x)
+sum(head(cropDmgConv$x,10))
+topCropDmg <- head(cropDmgConv,10)
+```
+
+Plot of events that caused more than 80% of propDmg and cropDmg
+```{r}
+par(mfrow=c(1,2))
+par(mar=c(7,4,4,1))
+barplot(topPropDmg$x,names.arg = topPropDmg$Group.1, las = 3, cex.names = .75, col="red", ylab = 'property damage $')
+barplot(topCropDmg$x,names.arg = topCropDmg$Group.1, las = 3, cex.names = .75, col="orange", ylab='crop damage $')
+```
+
+## Economic Consequences Results
+
+We can see that flood causes the most amount of property damage and drought causes the most crop damage.
+
